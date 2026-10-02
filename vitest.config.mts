@@ -1,4 +1,4 @@
-import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 try {
@@ -15,7 +15,7 @@ process.env.ROOT_DOMAIN = "bora.test";
 process.env.PANEL_ORIGIN = "http://app.bora.test";
 
 export default defineConfig({
-  resolve: { alias: { "@": path.resolve(__dirname, "src") } },
+  resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
