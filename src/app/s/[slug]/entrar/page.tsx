@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,6 +66,12 @@ export default async function EnterPage({
           <Button type="submit" className="w-full transition-all duration-200">
             Confirmar
           </Button>
+          <Link
+            href="/entrar"
+            className="inline-block text-sm text-zinc-500 transition-all duration-200 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            Usar outro número ou pedir novo código
+          </Link>
         </form>
       ) : (
         <form action={requestCodeAction} className="mt-10 space-y-5">

@@ -39,6 +39,43 @@ describe("findTenantBySegment", () => {
   });
 });
 
+describe("isolamento entre lojas", () => {
+  let tenantB: string;
+  beforeEach(async () => {
+    tenantB = await createTenant("loja-b", "Loja B", "lanchonete");
+  });
+
+  it("slug resolve a loja certa", async () => {
+    expect((await findTenantBySegment("loja-a"))?.id).toBe(tenantA);
+    expect((await findTenantBySegment("loja-b"))?.id).toBe(tenantB);
+  });
+  it("cada domínio verificado resolve a sua loja, sem caixa", async () => {
+    await adminSql`insert into tenant_domains (host, tenant_id, verified) values ('a.com', ${tenantA}, true), ('b.com', ${tenantB}, true), ('cardapio.loja.com.br', ${tenantA}, true)`;
+    expect((await findTenantBySegment("a.com"))?.id).toBe(tenantA);
+    expect((await findTenantBySegment("b.com"))?.id).toBe(tenantB);
+    expect((await findTenantBySegment("CARDAPIO.Loja.com.br"))?.id).toBe(tenantA);
+  });
+  it("domínio verificado de loja suspensa é null", async () => {
+    await adminSql`insert into tenant_domains (host, tenant_id, verified) values ('b.com', ${tenantB}, true)`;
+    await adminSql`update tenants set status = 'suspended' where id = ${tenantB}`;
+    expect(await findTenantBySegment("b.com")).toBeNull();
+  });
+  it("cada loja recebe só o próprio tema", async () => {
+    await adminSql`insert into tenant_settings (tenant_id, theme) values (${tenantA}, ${adminSql.json({ accent: "#be185d", radius: "lg" })}), (${tenantB}, ${adminSql.json({ accent: "#15803d", radius: "sm" })})`;
+    const a = await loadTenantTheme(tenantA);
+    const b = await loadTenantTheme(tenantB);
+    expect([a.accent, a.radius]).toEqual(["#be185d", "lg"]);
+    expect([b.accent, b.radius]).toEqual(["#15803d", "sm"]);
+  });
+  it.each([["string", `'"x"'::jsonb`], ["array", `'[1,2]'::jsonb`], ["null", `'null'::jsonb`]])(
+    "tema salvo como %s cai no padrão",
+    async (_name, literal) => {
+      await adminSql.unsafe(`insert into tenant_settings (tenant_id, theme) values ('${tenantA}', ${literal})`);
+      expect(await loadTenantTheme(tenantA)).toEqual(defaultTheme);
+    },
+  );
+});
+
 describe("loadTenantTheme", () => {
   it("sem settings: tema padrão", async () => {
     expect(await loadTenantTheme(tenantA)).toEqual(defaultTheme);
