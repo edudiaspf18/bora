@@ -1,0 +1,41 @@
+# Pendências da Fundação (minors adiados e itens estacionados)
+
+Origem: ledger da execução do plano 2026-10-02-bora-fundacao. Cada linha é um achado de revisão adiado de propósito.
+
+- Task 1: minor (deferred): .gitignore duplicates from create-next-app block
+- Task 1: minor (deferred): globals.css:9 --font-mono references undefined --font-geist-mono
+- Task 1: minor (deferred): globals.css:112 dark --sidebar-primary saturated blue (violates zinc rule; sidebar unused)
+- Task 1: minor (deferred): package.json name is "app", not "bora" (lockfile too)
+- Task 2: minor (deferred): migrate.ts:55-61 existing bora_app role never altered (password/attrs)
+- Task 2: minor (deferred): migrate.ts:47 MIGRATIONS_DIR from process.cwd()
+- Task 2: minor (deferred): global-setup.ts:6 error text names TEST_DATABASE_ADMIN_URL but reads DATABASE_ADMIN_URL
+- Task 2: minor (deferred): 0002_rls.sql:199 bora_app has full CRUD on global tables (tenants, staff_users); tighten later
+- Task 3: minor (deferred): rls.test.ts:270-276 leak test weak (max:10 pool; add max:1 client / sequential reuse)
+- Task 3: minor (deferred): rls.test.ts:255 no UPDATE case; :251 rejects.toThrow() should assert 'row-level security'
+- Task 3: minor (deferred): client.ts:31 DATABASE_URL ?? "" silently falls back to libpq defaults
+- Task 4: minor (deferred): host.ts single trailing-dot strip (x.bora.app.. → custom); harmless
+- Task 4: minor (deferred): middleware ROOT_DOMAIN ?? "localhost" fails open in prod when unset
+- Task 4: minor (deferred, CARRY to T12): matcher now matches /_next/webpack-hmr and /_next/data/* in dev; on store/panel hosts they get rewritten to /s/{slug}/_next/... — may break HMR/E2E under next dev; fix = pass /_next/ through untouched in middleware
+- Task 4: minor (deferred, CARRY to T11): /api/* on store/panel hosts is rewritten to /s/{slug}/api/*; decide before adding API routes
+- Task 5: minor (deferred): theme.ts themeToCss RADIUS/FONT_VAR lookups unguarded vs prototype keys if untyped Theme passed (T11 parses via themeSchema first)
+- Task 5: minor (deferred): theme tests lack trailing-newline, tampered-Theme-throws, near-white/black boundary cases
+- Task 6: minor (deferred, CARRY to final): password.ts dummyHash caches a rejected promise forever; session.ts:155/161 secret() inside try swallows misconfig into null
+- Task 6: minor (deferred): ip.ts x-forwarded-for leftmost is spoofable on appending proxies; all invalid values share one "unknown" throttle bucket
+- Task 6: minor (deferred): session tests lack alg:none / wrong-secret / kind-forgery cases; cookieOptions secure only in prod
+- Task 7: minor (deferred, CARRY to T8 + final): throttle.ts:36 toDate yields Invalid Date → fails open (guard or use epoch select); throttle.ts:56 resetThrottle racing hit → rows[0] undefined TypeError (T8 login success path calls resetThrottle); retryAfterMs must not be the gate
+- Task 7: minor (deferred): lock test uses fixed 200ms sleep (can pass vacuously on slow CI); poll pg_locks instead
+- Task 8: minor (deferred, CARRY to final): login/page.tsx:137 ERRORS[error] with ?error=constructor returns a function (use Object.hasOwn); searchParams string|string[]
+- Task 8: minor (deferred): actions.ts:65-69 cookie set before writeAudit (audit throw → 500 while logged in); logout leaves token valid until TTL; no store-switch without logout
+- Task 8: minor (deferred): 0003 SQL fn: set search_path = public, pg_temp + schema-qualify; r.role as Role unchecked cast
+- Task 8: minor (deferred): no tests for loginAction/selectTenantAction (forged tenantId)/logoutAction; NFKC non-trivial case; no is-active flag on staff_users
+- Task 9: minor (deferred, CARRY to T11/final): login page does not show ?reset=ok confirmation after successful reset
+- Task 9: minor (deferred, CARRY to final): two concurrent requests for same user can leave two live tokens (READ COMMITTED); confirmPasswordReset unthrottled (argon2 before token check); PANEL_ORIGIN silent localhost fallback in prod; consoleMailer logs reset link (token) always; Referrer-Policy on reset page; session revocation on password change; expired/used token rows never purged; throttle key growth unbounded
+- Task 9: minor (deferred): mailer failure log includes err.message verbatim (a provider echoing the body would leak the link); redact token=\S+
+- Task 10: minor (deferred, CARRY to final): sender.send failure leaves old code invalidated + raw exception (return typed send_failed); phone.ts no DDD/prefix validation; consoleSender is prod fallback and logs plaintext code; IP slot consumed when phone blocked; customers upsert rewrites row each login; getCustomerSession untested; verify tests only use PHONE_RAW; resetDb does not clear throttles (shared IP key fragility)
+- Task 11: minor (deferred, CARRY to final): actions.ts tenant from hidden `segment` field (derive from host; safeParse not parse → ZodError 500); phone in URL query + unvalidated `tel` echo; single "tenants" cache tag, null cached 60s, suspended tenant served 60s (call revalidateTag when tenant lifecycle exists); cache key uses raw segment (case/arbitrary hosts → many entries); conta page renders empty phone if customer row missing; hardcoded #EA580C in landing; /api/* rewrite on store/panel hosts (T4 carry)
+- Task 12: minor (deferred): e2e networkidle waits; seed does not refresh vertical/staff name on conflict; no-legacy-names ext list omits .js/.html/.sh, NFD ã; add store-host /panel 404 e2e case
+- Task 12: minor (deferred, CARRY to final): E2E_UNSAFE_FILE_OTP flag could write OTP codes to disk in prod if operator sets OTP_SENDER=file + flag (gate also on localhost-ish ROOT_DOMAIN); ROOT_DOMAIN unset defaults to "localhost" so effectiveHost condition (b) holds by default in prod misconfig (fail closed in prod); no negative test for flag values other than "1"; middleware prod-stub test no longer exercises effectiveHost branch; consoleSender logs OTP codes in prod (pre-existing, interim until WhatsApp)
+- Task final: parked — I3 stale serving: getTenantCached now throws on miss; a cached-then-suspended tenant may keep being served on pages until cache eviction (60s revalidate; no revalidateTag in code) — Ruling: real but no tenant lifecycle (suspend/delete) exists in the Foundation; same exposure existed before (60s); fix = revalidateTag("tenants") on lifecycle changes in sub-project 4; no second fix wave per process
+- Task final: parked — migrate() lacks empty-password guard (script guards; env set-but-empty passes vitest ??=) — Ruling: LATER, trivial hardening
+- Task final: parked — landing page prerenders PANEL_ORIGIN at build (throws at build in prod if unset) — Ruling: README note added by controller; mark dynamic later
+- Task final: complete (commits 98e087b..39e85f9, 1 re-review, 3 parked)
