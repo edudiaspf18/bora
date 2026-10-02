@@ -1,12 +1,9 @@
 import Link from "next/link";
+import { first } from "@/lib/search-params";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { requestResetAction } from "./actions";
-
-function first(value: string | string[] | undefined): string | undefined {
-  return Array.isArray(value) ? value[0] : value;
-}
 
 export default async function ForgotPasswordPage({
   searchParams,

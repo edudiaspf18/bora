@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { first } from "@/lib/search-params";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,10 +14,10 @@ const ERRORS: Record<string, string> = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string | string[] }>;
 }) {
-  const { error } = await searchParams;
-  const message = error ? ERRORS[error] : undefined;
+  const error = first((await searchParams).error);
+  const message = error && Object.hasOwn(ERRORS, error) ? ERRORS[error] : undefined;
 
   return (
     <main>

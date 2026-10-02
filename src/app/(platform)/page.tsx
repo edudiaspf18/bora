@@ -1,7 +1,14 @@
 import { ArrowRight } from "lucide-react";
 
+function resolvePanelOrigin(): string {
+  const origin = process.env.PANEL_ORIGIN;
+  if (origin) return origin;
+  if (process.env.NODE_ENV === "production") throw new Error("PANEL_ORIGIN ausente em produção");
+  return "http://app.localhost:3000";
+}
+
 export default function LandingPage() {
-  const panelOrigin = process.env.PANEL_ORIGIN ?? "http://app.localhost:3000";
+  const panelOrigin = resolvePanelOrigin();
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-5xl flex-col justify-between px-6 py-12 md:py-24">

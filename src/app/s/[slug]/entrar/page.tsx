@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { first } from "@/lib/search-params";
 import { getTenantCached } from "@/server/tenancy/cached";
 import { requestCodeAction, verifyCodeAction } from "./actions";
 
@@ -15,10 +16,6 @@ const ERRORS: Record<string, string> = {
 };
 
 type Param = string | string[] | undefined;
-
-function first(value: Param): string | undefined {
-  return Array.isArray(value) ? value[0] : value;
-}
 
 export default async function EnterPage({
   params,
@@ -43,7 +40,6 @@ export default async function EnterPage({
 
       {etapa === "codigo" && tel ? (
         <form action={verifyCodeAction} className="mt-10 space-y-5">
-          <input type="hidden" name="segment" value={slug} />
           <input type="hidden" name="phone" value={tel} />
           <div className="space-y-2">
             <Label htmlFor="code">Código enviado para {tel}</Label>
@@ -75,7 +71,6 @@ export default async function EnterPage({
         </form>
       ) : (
         <form action={requestCodeAction} className="mt-10 space-y-5">
-          <input type="hidden" name="segment" value={slug} />
           <div className="space-y-2">
             <Label htmlFor="phone">Telefone com DDD</Label>
             <Input id="phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="(00) 00000-0000" required maxLength={32} />

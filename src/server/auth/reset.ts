@@ -27,8 +27,11 @@ export function getMailer(): Mailer {
 
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 
-function panelOrigin(): string {
-  return process.env.PANEL_ORIGIN ?? "http://app.localhost:3000";
+export function panelOrigin(): string {
+  const origin = process.env.PANEL_ORIGIN;
+  if (origin) return origin;
+  if (process.env.NODE_ENV === "production") throw new Error("PANEL_ORIGIN ausente em produção");
+  return "http://app.localhost:3000";
 }
 
 export async function requestPasswordReset(
@@ -90,6 +93,12 @@ export async function confirmPasswordReset(
 ): Promise<ResetResult> {
   if (token.length === 0 || token.length > 200) return { ok: false, reason: "invalid" };
   if (!passwordSchema.safeParse(newPassword).success) return { ok: false, reason: "weak" };
+
+  // Gate barato antes do Argon2: token inexistente/usado/expirado não gasta CPU.
+  const live = await db.execute(sql`
+    select staff_id from password_reset_tokens
+    where token_hash = ${sha256(token)} and used_at is null and expires_at > now()`);
+  if (live.length === 0) return { ok: false, reason: "invalid" };
 
   const passwordHash = await hashPassword(newPassword);
   return db.transaction(async (tx) => {

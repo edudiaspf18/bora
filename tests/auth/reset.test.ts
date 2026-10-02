@@ -1,10 +1,15 @@
 import { eq } from "drizzle-orm";
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { verifyPassword } from "@/server/auth/password";
-import { confirmPasswordReset, requestPasswordReset, type Mailer } from "@/server/auth/reset";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { hashPassword, verifyPassword } from "@/server/auth/password";
+import { confirmPasswordReset, panelOrigin, requestPasswordReset, type Mailer } from "@/server/auth/reset";
 import { closeDb, db } from "@/server/db/client";
 import { staffUsers } from "@/server/db/schema";
 import { adminSql, closeAdmin, createStaff, resetDb } from "../helpers/db";
+
+vi.mock("@/server/auth/password", async (importOriginal) => {
+  const m = await importOriginal<typeof import("@/server/auth/password")>();
+  return { ...m, hashPassword: vi.fn(m.hashPassword) };
+});
 
 const sent: { to: string; subject: string; text: string }[] = [];
 const mailer: Mailer = {
@@ -20,6 +25,7 @@ function tokenFromMail(): string {
 }
 
 beforeEach(async () => {
+  vi.mocked(hashPassword).mockClear();
   sent.length = 0;
   await resetDb();
   await createStaff("dono@exemplo.com", "senha-antiga-123");
@@ -128,5 +134,32 @@ describe("reset de senha: falha do mailer", () => {
     } finally {
       spy.mockRestore();
     }
+  });
+});
+
+describe("DoS no reset", () => {
+  it("token desconhecido não dispara hash Argon2", async () => {
+    vi.mocked(hashPassword).mockClear();
+    const r = await confirmPasswordReset("token-que-nao-existe", "senha-nova-valida-123");
+    expect(r).toEqual({ ok: false, reason: "invalid" });
+    expect(hashPassword).not.toHaveBeenCalled();
+  });
+});
+
+describe("panelOrigin", () => {
+  afterEach(() => vi.unstubAllEnvs());
+  it("produção sem PANEL_ORIGIN lança", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("PANEL_ORIGIN", undefined);
+    expect(() => panelOrigin()).toThrow(/PANEL_ORIGIN/);
+  });
+  it("produção com PANEL_ORIGIN usa o valor", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("PANEL_ORIGIN", "https://app.bora.app");
+    expect(panelOrigin()).toBe("https://app.bora.app");
+  });
+  it("fora de produção cai no fallback local", () => {
+    vi.stubEnv("PANEL_ORIGIN", undefined);
+    expect(panelOrigin()).toBe("http://app.localhost:3000");
   });
 });

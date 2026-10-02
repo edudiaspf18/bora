@@ -20,6 +20,13 @@ describe("normalizeHost", () => {
 });
 
 describe("resolveHost", () => {
+  it("host customizado sem ponto é desconhecido (ex.: localhost com raiz bora.app)", () => {
+    expect(resolveHost("localhost:3000", ROOT)).toEqual({ kind: "unknown" });
+    expect(resolveHost("intranet", ROOT)).toEqual({ kind: "unknown" });
+  });
+  it("raiz localhost: localhost continua landing", () => {
+    expect(resolveHost("localhost:3000", "localhost")).toEqual({ kind: "landing" });
+  });
   it("landing", () => {
     expect(resolveHost("bora.app", ROOT)).toEqual({ kind: "landing" });
     expect(resolveHost("www.bora.app", ROOT)).toEqual({ kind: "landing" });

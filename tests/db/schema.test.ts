@@ -44,4 +44,17 @@ describe("schema", () => {
       select has_table_privilege('bora_app', '_migrations', 'select') as ok`;
     expect(row.ok).toBe(false);
   });
+
+  it("staff_memberships_for: search_path fixo e privilégios restritos", async () => {
+    const [fn] = await adminSql`
+      select p.proconfig as cfg from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public' and p.proname = 'staff_memberships_for'`;
+    expect(fn.cfg).toContain("search_path=pg_catalog, public, pg_temp");
+    const [priv] = await adminSql`
+      select has_function_privilege('bora_app', 'staff_memberships_for(uuid)', 'execute') as app,
+             has_function_privilege('public', 'staff_memberships_for(uuid)', 'execute') as pub`;
+    expect(priv.app).toBe(true);
+    expect(priv.pub).toBe(false);
+  });
 });

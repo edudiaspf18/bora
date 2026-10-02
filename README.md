@@ -9,6 +9,8 @@ Next.js 15 · TypeScript · PostgreSQL 16 · Drizzle · Zod · Tailwind v4 · Sh
 
 ## Rodar local
 
+Requer Node >= 22.9.
+
 ```bash
 cp .env.example .env            # ajuste usuário do Postgres e SESSION_SECRET
 createdb bora && createdb bora_test
@@ -29,7 +31,21 @@ Endereços (domínio raiz `localhost`):
 ```bash
 npm test        # unitários e integração (Postgres real, banco bora_test)
 npm run e2e     # Playwright (roda o seed antes)
+npm run e2e:prod # build de produção + Playwright
 ```
+
+## Antes de ir para produção
+
+BLOCKERS (não publicar sem resolver):
+
+- IP do cliente confiável: o item mais à esquerda de `x-forwarded-for` é controlado pelo cliente, a menos que o proxy o sobrescreva. Os limites por IP (login, reset, OTP) dependem disso. Implementar `TRUSTED_PROXY_HOPS` em `src/server/auth/ip.ts` ou configurar o proxy para sobrescrever o header.
+- Sender de OTP real: `consoleSender` registra os códigos no log. Produção não pode usá-lo.
+- Mailer real: `consoleMailer` registra os links de redefinição de senha.
+- Variáveis obrigatórias: `ROOT_DOMAIN`, `PANEL_ORIGIN`, `SESSION_SECRET` (nunca o placeholder do `.env.example`), `APP_DB_PASSWORD`, `DATABASE_*`.
+- Nunca definir `E2E_UNSAFE_FILE_OTP` nem `OTP_SENDER=file` em produção.
+- Revogação de sessão na troca de senha não existe (ideia: `staff_users.sessions_valid_after`).
+- Apertar os grants de `bora_app` nas tabelas globais.
+- Header `Referrer-Policy` (ex.: `no-referrer`) na página de redefinição de senha.
 
 ## Docs
 

@@ -40,6 +40,13 @@ describe("middleware", () => {
     });
     expect(middleware(r).headers.get("x-middleware-rewrite")).toMatch(/\/s\/demo\/entrar$/);
   });
+  it("produção sem ROOT_DOMAIN falha fechado (404 com CSP)", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("ROOT_DOMAIN", undefined);
+    const res = middleware(req("bora.test", "/"));
+    expect(res.status).toBe(404);
+    expect(res.headers.get("content-security-policy")).toBeTruthy();
+  });
   it("landing passa direto", () => {
     const res = middleware(req("bora.test", "/"));
     expect(res.headers.get("x-middleware-next")).toBe("1");

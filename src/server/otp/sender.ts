@@ -22,8 +22,11 @@ const fileSender: OtpSender = {
 
 /** O canal real (WhatsApp) entra no sub-projeto 5, atrás desta interface. */
 export function getOtpSender(): OtpSender {
+  const root = (process.env.ROOT_DOMAIN ?? "").toLowerCase();
+  const localRoot = root === "localhost" || root.endsWith(".localhost");
   const allowed =
-    process.env.NODE_ENV !== "production" || process.env.E2E_UNSAFE_FILE_OTP === "1";
+    process.env.NODE_ENV !== "production" ||
+    (process.env.E2E_UNSAFE_FILE_OTP === "1" && localRoot);
   if (process.env.OTP_SENDER === "file" && allowed) {
     return fileSender;
   }

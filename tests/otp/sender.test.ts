@@ -13,11 +13,30 @@ describe("getOtpSender", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("OTP_SENDER", "file");
     vi.stubEnv("E2E_UNSAFE_FILE_OTP", "1");
+    vi.stubEnv("ROOT_DOMAIN", "localhost");
     expect(getOtpSender()).not.toBe(consoleSender);
   });
   it("fora de produção, OTP_SENDER=file basta", () => {
     vi.stubEnv("NODE_ENV", "development");
     vi.stubEnv("OTP_SENDER", "file");
+    expect(getOtpSender()).not.toBe(consoleSender);
+  });
+  it.each(["true", "0", ""])("produção: E2E_UNSAFE_FILE_OTP=%j não abre o file sender", (value) => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("OTP_SENDER", "file");
+    vi.stubEnv("ROOT_DOMAIN", "localhost");
+    vi.stubEnv("E2E_UNSAFE_FILE_OTP", value);
+    expect(getOtpSender()).toBe(consoleSender);
+  });
+  it("produção: file sender exige ROOT_DOMAIN local mesmo com opt-in", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("OTP_SENDER", "file");
+    vi.stubEnv("E2E_UNSAFE_FILE_OTP", "1");
+    vi.stubEnv("ROOT_DOMAIN", "bora.app");
+    expect(getOtpSender()).toBe(consoleSender);
+    vi.stubEnv("ROOT_DOMAIN", "bora.localhost");
+    expect(getOtpSender()).not.toBe(consoleSender);
+    vi.stubEnv("ROOT_DOMAIN", "localhost");
     expect(getOtpSender()).not.toBe(consoleSender);
   });
 });

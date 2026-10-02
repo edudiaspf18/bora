@@ -32,6 +32,10 @@ function notFound(csp: string): NextResponse {
 }
 
 export function middleware(req: NextRequest): NextResponse {
+  const nonce = btoa(crypto.randomUUID());
+  const csp = buildCsp(nonce, process.env.NODE_ENV !== "production");
+  // Produção sem ROOT_DOMAIN: falha fechado em vez de assumir localhost.
+  if (process.env.NODE_ENV === "production" && !process.env.ROOT_DOMAIN) return notFound(csp);
   const rootDomain = process.env.ROOT_DOMAIN ?? "localhost";
   const hostHeader = effectiveHost(
     req.headers.get("host"),
@@ -41,8 +45,6 @@ export function middleware(req: NextRequest): NextResponse {
   const target = resolveHost(hostHeader, rootDomain);
   const { pathname } = req.nextUrl;
 
-  const nonce = btoa(crypto.randomUUID());
-  const csp = buildCsp(nonce, process.env.NODE_ENV !== "production");
   const headers = new Headers(req.headers);
   headers.set("x-nonce", nonce);
   headers.set("content-security-policy", csp);

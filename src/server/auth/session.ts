@@ -19,6 +19,12 @@ export type Session = z.infer<typeof sessionSchema>;
 function secret(): Uint8Array {
   const value = process.env.SESSION_SECRET;
   if (!value || value.length < 32) throw new Error("SESSION_SECRET ausente ou curto (mín. 32)");
+  if (
+    process.env.NODE_ENV === "production" &&
+    value === "troque-por-uma-string-aleatoria-de-32-bytes-ou-mais"
+  ) {
+    throw new Error("SESSION_SECRET é o placeholder do .env.example");
+  }
   return new TextEncoder().encode(value);
 }
 

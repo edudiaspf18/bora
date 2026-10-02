@@ -1,4 +1,4 @@
-const RESERVED = new Set(["app", "www", "api", "admin", "static"]);
+const RESERVED = new Set(["app", "www", "api", "admin", "static", "localhost"]);
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
 
 export type HostTarget =
@@ -33,6 +33,8 @@ export function resolveHost(raw: string | null, rootDomain: string): HostTarget 
     }
     return { kind: "store", slug: label };
   }
+  // Host sem ponto (ex.: localhost com raiz diferente) nunca é domínio próprio.
+  if (!host.includes(".")) return { kind: "unknown" };
   return { kind: "custom", host };
 }
 

@@ -1,3 +1,4 @@
+import { first } from "@/lib/search-params";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,10 +8,6 @@ const ERRORS: Record<string, string> = {
   invalid: "Link inválido ou expirado. Peça um novo.",
   weak: "A senha precisa ter de 10 a 128 caracteres.",
 };
-
-function first(value: string | string[] | undefined): string | undefined {
-  return Array.isArray(value) ? value[0] : value;
-}
 
 export default async function ResetPasswordPage({
   searchParams,

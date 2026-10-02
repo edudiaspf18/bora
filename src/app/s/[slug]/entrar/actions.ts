@@ -2,20 +2,16 @@
 
 import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { z } from "zod";
 import { writeAudit } from "@/server/audit";
 import { CUSTOMER_COOKIE, CUSTOMER_TTL_SECONDS, cookieOptions } from "@/server/auth/cookies";
 import { clientIp } from "@/server/auth/ip";
 import { signSession } from "@/server/auth/session";
 import { issueOtp, verifyOtp } from "@/server/otp/otp";
 import { getOtpSender } from "@/server/otp/sender";
-import { findTenantBySegment } from "@/server/tenancy/lookup";
-
-const segmentSchema = z.string().min(1).max(253);
+import { tenantFromHeaders } from "@/server/tenancy/request";
 
 export async function requestCodeAction(formData: FormData): Promise<void> {
-  const segment = segmentSchema.parse(formData.get("segment"));
-  const tenant = await findTenantBySegment(segment);
+  const tenant = await tenantFromHeaders(await headers());
   if (!tenant) notFound();
 
   const result = await issueOtp({
@@ -30,8 +26,7 @@ export async function requestCodeAction(formData: FormData): Promise<void> {
 }
 
 export async function verifyCodeAction(formData: FormData): Promise<void> {
-  const segment = segmentSchema.parse(formData.get("segment"));
-  const tenant = await findTenantBySegment(segment);
+  const tenant = await tenantFromHeaders(await headers());
   if (!tenant) notFound();
 
   const phone = String(formData.get("phone") ?? "");

@@ -11,11 +11,12 @@ export async function migrate(adminUrl: string, appPassword: string): Promise<st
     await sql`select pg_advisory_lock(${LOCK_ID})`;
 
     const roles = await sql`select 1 from pg_roles where rolname = 'bora_app'`;
+    const pwd = appPassword.replace(/'/g, "''");
     if (roles.length === 0) {
-      const pwd = appPassword.replace(/'/g, "''");
-      await sql.unsafe(
-        `create role bora_app login nosuperuser nobypassrls password '${pwd}'`,
-      );
+      await sql.unsafe(`create role bora_app login nosuperuser nobypassrls password '${pwd}'`);
+    } else {
+      // Senha rotacionável: roda a cada migrate.
+      await sql.unsafe(`alter role bora_app with login nosuperuser nobypassrls password '${pwd}'`);
     }
 
     await sql`create table if not exists _migrations (
