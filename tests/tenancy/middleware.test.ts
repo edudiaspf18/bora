@@ -23,6 +23,12 @@ describe("middleware", () => {
     const res = middleware(req("app.bora.test", "/login"));
     expect(res.headers.get("x-middleware-rewrite")).toMatch(/\/panel\/login$/);
   });
+  it("dev: fetch interno de redirect() usa x-forwarded-host", () => {
+    const r = new NextRequest("http://bora.test/login", {
+      headers: { host: "bora.test", "x-forwarded-host": "app.bora.test" },
+    });
+    expect(middleware(r).headers.get("x-middleware-rewrite")).toMatch(/\/panel\/login$/);
+  });
   it("landing passa direto", () => {
     const res = middleware(req("bora.test", "/"));
     expect(res.headers.get("x-middleware-next")).toBe("1");

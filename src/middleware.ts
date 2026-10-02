@@ -33,11 +33,15 @@ function notFound(csp: string): NextResponse {
 
 export function middleware(req: NextRequest): NextResponse {
   const rootDomain = process.env.ROOT_DOMAIN ?? "localhost";
-  const target = resolveHost(req.headers.get("host"), rootDomain);
+  const isDev = process.env.NODE_ENV !== "production";
+  // Dev: o fetch interno do redirect() de Server Actions chega com Host=localhost:PORT
+  // e o host real em x-forwarded-host. Em produção o host é sempre o do request.
+  const hostHeader = (isDev && req.headers.get("x-forwarded-host")) || req.headers.get("host");
+  const target = resolveHost(hostHeader, rootDomain);
   const { pathname } = req.nextUrl;
 
   const nonce = btoa(crypto.randomUUID());
-  const csp = buildCsp(nonce, process.env.NODE_ENV !== "production");
+  const csp = buildCsp(nonce, isDev);
   const headers = new Headers(req.headers);
   headers.set("x-nonce", nonce);
   headers.set("content-security-policy", csp);

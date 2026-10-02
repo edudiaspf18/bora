@@ -49,3 +49,8 @@ next-env.d.ts
 
 # manter o exemplo versionado
 !.env.example
+
+# e2e
+.e2e/
+playwright-report/
+test-results/
