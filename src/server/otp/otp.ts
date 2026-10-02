@@ -55,11 +55,19 @@ export async function issueOtp(args: {
 
   const code = (args.generate ?? generateCode)();
   await withTenant(args.tenantId, async (tx) => {
+    // Serializa emissões do mesmo telefone: evita duas linhas não consumidas.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`${args.tenantId}:${phone}`}))`);
     // Só o código mais recente vale.
     await tx
       .update(otpCodes)
       .set({ consumedAt: now })
-      .where(and(eq(otpCodes.phone, phone), isNull(otpCodes.consumedAt)));
+      .where(
+        and(
+          eq(otpCodes.tenantId, args.tenantId),
+          eq(otpCodes.phone, phone),
+          isNull(otpCodes.consumedAt),
+        ),
+      );
     await tx.insert(otpCodes).values({
       tenantId: args.tenantId,
       phone,
@@ -90,7 +98,13 @@ export async function verifyOtp(args: {
     const [row] = await tx
       .select()
       .from(otpCodes)
-      .where(and(eq(otpCodes.phone, phone), isNull(otpCodes.consumedAt)))
+      .where(
+        and(
+          eq(otpCodes.tenantId, args.tenantId),
+          eq(otpCodes.phone, phone),
+          isNull(otpCodes.consumedAt),
+        ),
+      )
       .orderBy(desc(otpCodes.createdAt))
       .limit(1)
       .for("update");
@@ -110,7 +124,17 @@ export async function verifyOtp(args: {
       return { ok: false, reason: "invalid" };
     }
 
-    await tx.update(otpCodes).set({ consumedAt: now }).where(eq(otpCodes.id, row.id));
+    // Consome também qualquer código irmão: nenhum outro vale depois.
+    await tx
+      .update(otpCodes)
+      .set({ consumedAt: now })
+      .where(
+        and(
+          eq(otpCodes.tenantId, args.tenantId),
+          eq(otpCodes.phone, phone),
+          isNull(otpCodes.consumedAt),
+        ),
+      );
     const [customer] = await tx
       .insert(customers)
       .values({ phone })

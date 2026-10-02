@@ -7,6 +7,11 @@ export function normalizePhone(raw: string, dialCode = "55"): string | null {
   if (raw.includes("+") && !raw.trim().startsWith("+")) return null;
 
   const digits = raw.replace(/\D/g, "");
+  // Com "+", o número já traz o país: sem prefixo automático (evita virar outro número).
+  if (raw.trim().startsWith("+")) {
+    const national = digits.length - dialCode.length;
+    return digits.startsWith(dialCode) && NATIONAL_LENGTHS.includes(national) ? `+${digits}` : null;
+  }
   if (digits.startsWith(dialCode) && NATIONAL_LENGTHS.includes(digits.length - dialCode.length)) {
     return `+${digits}`;
   }

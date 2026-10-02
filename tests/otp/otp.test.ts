@@ -69,6 +69,13 @@ describe("issueOtp", () => {
     expect(results.filter((r) => r.ok)).toHaveLength(5);
     expect(results.filter((r) => !r.ok && r.reason === "throttled")).toHaveLength(5);
   });
+  it("após 10 pedidos paralelos sobra exatamente 1 código não consumido", async () => {
+    await Promise.all(Array.from({ length: 10 }, (_, i) => issue({ ip: `6.6.6.${i}` })));
+    const rows = await adminSql`
+      select 1 from otp_codes
+      where tenant_id = ${tenantA} and phone = ${PHONE} and consumed_at is null`;
+    expect(rows).toHaveLength(1);
+  });
   it("um IP não pode pedir códigos sem fim para telefones diferentes", async () => {
     let blocked = false;
     for (let i = 0; i < 25; i++) {
@@ -145,5 +152,21 @@ describe("verifyOtp", () => {
     await verifyOtp({ tenantId: tenantB, rawPhone: PHONE_RAW, code: "222222" });
     expect((await adminSql`select 1 from customers`).length).toBe(1);
     expect((await adminSql`select 1 from customer_profiles`).length).toBe(2);
+  });
+
+  it("código antigo não ressuscita depois que o novo é consumido", async () => {
+    await issue({ generate: () => "111111" });
+    await issue({ generate: () => "222222" });
+    // Simula a corrida: duas linhas não consumidas para o mesmo telefone.
+    await adminSql`update otp_codes set consumed_at = null`;
+    expect((await verifyOtp({ tenantId: tenantA, rawPhone: PHONE_RAW, code: "222222" })).ok).toBe(true);
+    expect(await verifyOtp({ tenantId: tenantA, rawPhone: PHONE_RAW, code: "111111" })).toEqual({ ok: false, reason: "invalid" });
+  });
+
+  it("aceita outros formatos do mesmo número", async () => {
+    await issue({ generate: () => "123456" });
+    expect((await verifyOtp({ tenantId: tenantA, rawPhone: "+55 62 998286169", code: "123456" })).ok).toBe(true);
+    await issue({ generate: () => "654321", ip: "2.2.2.2" });
+    expect((await verifyOtp({ tenantId: tenantA, rawPhone: "+5562998286169", code: "654321" })).ok).toBe(true);
   });
 });

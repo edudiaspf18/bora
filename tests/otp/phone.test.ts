@@ -28,4 +28,17 @@ describe("normalizePhone", () => {
   it("limite de tamanho da entrada", () => {
     expect(normalizePhone("1".repeat(500))).toBeNull();
   });
+  it("número estrangeiro com + nunca vira brasileiro", () => {
+    expect(normalizePhone("+1 415 555 2671")).toBeNull();
+    expect(normalizePhone("+44 20 7946 0958")).toBeNull();
+    expect(normalizePhone("+5562")).toBeNull();
+  });
+  it("+55 continua válido", () => {
+    expect(normalizePhone("+55 62 998286169")).toBe("+5562998286169");
+    expect(normalizePhone("+5562998286169")).toBe("+5562998286169");
+    expect(normalizePhone("+55 55 99999-9999")).toBe("+5555999999999");
+  });
+  it("zero de tronco é recusado", () => {
+    expect(normalizePhone("062998286169")).toBeNull();
+  });
 });
