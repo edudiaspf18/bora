@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { buildCsp } from "@/server/security/csp";
-import { resolveHost, segmentFor } from "@/server/tenancy/host";
+import { effectiveHost, resolveHost, segmentFor } from "@/server/tenancy/host";
 
 // Só assets do Next ficam fora; paths pontuados passam pelo guard e pelo CSP.
 export const config = {
@@ -33,15 +33,16 @@ function notFound(csp: string): NextResponse {
 
 export function middleware(req: NextRequest): NextResponse {
   const rootDomain = process.env.ROOT_DOMAIN ?? "localhost";
-  const isDev = process.env.NODE_ENV !== "production";
-  // Dev: o fetch interno do redirect() de Server Actions chega com Host=localhost:PORT
-  // e o host real em x-forwarded-host. Em produção o host é sempre o do request.
-  const hostHeader = (isDev && req.headers.get("x-forwarded-host")) || req.headers.get("host");
+  const hostHeader = effectiveHost(
+    req.headers.get("host"),
+    req.headers.get("x-forwarded-host"),
+    rootDomain,
+  );
   const target = resolveHost(hostHeader, rootDomain);
   const { pathname } = req.nextUrl;
 
   const nonce = btoa(crypto.randomUUID());
-  const csp = buildCsp(nonce, isDev);
+  const csp = buildCsp(nonce, process.env.NODE_ENV !== "production");
   const headers = new Headers(req.headers);
   headers.set("x-nonce", nonce);
   headers.set("content-security-policy", csp);

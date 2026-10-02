@@ -45,3 +45,5 @@ jobs:
       - run: npm run db:migrate
       - run: npm run db:seed
       - run: npm run e2e
+        env:
+          E2E_PROD: "1"

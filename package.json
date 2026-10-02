@@ -9,9 +9,10 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "db:migrate": "tsx --env-file=.env scripts/migrate.ts",
-    "db:seed": "tsx --env-file=.env scripts/seed.ts",
-    "e2e": "npm run db:seed && playwright test"
+    "db:migrate": "tsx --env-file-if-exists=.env scripts/migrate.ts",
+    "db:seed": "tsx --env-file-if-exists=.env scripts/seed.ts",
+    "e2e": "npm run db:seed && playwright test",
+    "e2e:prod": "npm run build && E2E_PROD=1 npm run e2e"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.1",

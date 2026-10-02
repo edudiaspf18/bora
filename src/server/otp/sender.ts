@@ -11,7 +11,7 @@ export const consoleSender: OtpSender = {
   },
 };
 
-/** Só para E2E: grava o último código em arquivo. Bloqueado em produção. */
+/** Só para E2E: grava o último código em arquivo. Bloqueado em produção, salvo opt-in explícito do E2E. */
 const fileSender: OtpSender = {
   async send(phone, code, ctx) {
     const file = process.env.OTP_FILE ?? ".e2e/otp.json";
@@ -22,7 +22,9 @@ const fileSender: OtpSender = {
 
 /** O canal real (WhatsApp) entra no sub-projeto 5, atrás desta interface. */
 export function getOtpSender(): OtpSender {
-  if (process.env.OTP_SENDER === "file" && process.env.NODE_ENV !== "production") {
+  const allowed =
+    process.env.NODE_ENV !== "production" || process.env.E2E_UNSAFE_FILE_OTP === "1";
+  if (process.env.OTP_SENDER === "file" && allowed) {
     return fileSender;
   }
   return consoleSender;

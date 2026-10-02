@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeHost, resolveHost, segmentFor } from "@/server/tenancy/host";
+import { effectiveHost, normalizeHost, resolveHost, segmentFor } from "@/server/tenancy/host";
 
 const ROOT = "bora.app";
 
@@ -65,5 +65,36 @@ describe("segmentFor", () => {
     expect(segmentFor({ kind: "landing" })).toBeNull();
     expect(segmentFor({ kind: "panel" })).toBeNull();
     expect(segmentFor({ kind: "unknown" })).toBeNull();
+  });
+});
+
+describe("effectiveHost", () => {
+  it("ignora x-forwarded-host forjado em host público", () => {
+    expect(effectiveHost("app.bora.test", "demo.bora.test", "bora.test")).toBe("app.bora.test");
+    expect(effectiveHost("demo.bora.test", "app.bora.test", "bora.test")).toBe("demo.bora.test");
+  });
+  it("ignora quando ROOT_DOMAIN não é localhost, mesmo com host loopback", () => {
+    expect(effectiveHost("localhost:3000", "app.bora.app", "bora.app")).toBe("localhost:3000");
+  });
+  it("ignora com ROOT_DOMAIN localhost e host público", () => {
+    expect(effectiveHost("bora.app", "app.localhost:3100", "localhost")).toBe("bora.app");
+    expect(effectiveHost("evil.localhost:3100", "app.localhost:3100", "localhost")).toBe(
+      "evil.localhost:3100",
+    );
+  });
+  it("honra com host loopback e ROOT_DOMAIN localhost", () => {
+    for (const h of ["localhost:3100", "localhost", "127.0.0.1:3100", "[::1]:3100"]) {
+      expect(effectiveHost(h, "demo-acai.localhost:3100", "localhost")).toBe(
+        "demo-acai.localhost:3100",
+      );
+    }
+    expect(effectiveHost("localhost:3100", "demo.dev.localhost", "dev.localhost")).toBe(
+      "demo.dev.localhost",
+    );
+  });
+  it("forwarded malformado ou ausente cai no host", () => {
+    expect(effectiveHost("localhost:3100", "a b!", "localhost")).toBe("localhost:3100");
+    expect(effectiveHost("localhost:3100", "", "localhost")).toBe("localhost:3100");
+    expect(effectiveHost("localhost:3100", null, "localhost")).toBe("localhost:3100");
   });
 });

@@ -1,10 +1,12 @@
 import { NextRequest } from "next/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { config, middleware } from "@/middleware";
 
 function req(host: string, path = "/") {
   return new NextRequest(`http://${host}${path}`, { headers: { host } });
 }
+
+afterEach(() => vi.unstubAllEnvs());
 
 describe("middleware", () => {
   it("vitrine: reescreve para /s/{slug}", () => {
@@ -23,11 +25,20 @@ describe("middleware", () => {
     const res = middleware(req("app.bora.test", "/login"));
     expect(res.headers.get("x-middleware-rewrite")).toMatch(/\/panel\/login$/);
   });
-  it("dev: fetch interno de redirect() usa x-forwarded-host", () => {
-    const r = new NextRequest("http://bora.test/login", {
-      headers: { host: "bora.test", "x-forwarded-host": "app.bora.test" },
+  it("fetch interno de redirect() em dev (loopback + localhost) usa x-forwarded-host", () => {
+    vi.stubEnv("ROOT_DOMAIN", "localhost");
+    const r = new NextRequest("http://localhost:3100/login", {
+      headers: { host: "localhost:3100", "x-forwarded-host": "app.localhost:3100" },
     });
     expect(middleware(r).headers.get("x-middleware-rewrite")).toMatch(/\/panel\/login$/);
+  });
+  it("produção: x-forwarded-host forjado é ignorado", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("ROOT_DOMAIN", "bora.test");
+    const r = new NextRequest("http://demo.bora.test/entrar", {
+      headers: { host: "demo.bora.test", "x-forwarded-host": "app.bora.test" },
+    });
+    expect(middleware(r).headers.get("x-middleware-rewrite")).toMatch(/\/s\/demo\/entrar$/);
   });
   it("landing passa direto", () => {
     const res = middleware(req("bora.test", "/"));

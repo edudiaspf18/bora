@@ -41,3 +41,20 @@ export function segmentFor(target: HostTarget): string | null {
   if (target.kind === "custom") return target.host;
   return null;
 }
+
+const LOOPBACK_RE = /^(?:localhost|127\.0\.0\.1|\[::1\])(?::\d{1,5})?$/i;
+
+// O fetch interno de redirect() das Server Actions chega com Host=loopback e o host
+// real em x-forwarded-host. Só confiamos nele quando o Host é loopback E o domínio
+// raiz é local; qualquer outro caso usa o Host (x-forwarded-host é controlado pelo cliente).
+export function effectiveHost(
+  hostHeader: string | null,
+  forwardedHost: string | null,
+  rootDomain: string,
+): string | null {
+  const root = rootDomain.toLowerCase();
+  const localRoot = root === "localhost" || root.endsWith(".localhost");
+  if (!localRoot || !hostHeader || !LOOPBACK_RE.test(hostHeader.trim())) return hostHeader;
+  const forwarded = forwardedHost?.split(",")[0]?.trim() ?? null;
+  return normalizeHost(forwarded) ? forwarded : hostHeader;
+}

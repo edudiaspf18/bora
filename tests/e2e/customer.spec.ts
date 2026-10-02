@@ -11,13 +11,14 @@ test("cliente entra por OTP e a sessão não vaza para outra loja", async ({ pag
   await page.getByLabel("Telefone com DDD").fill("(62) 99828-6169");
   await page.getByRole("button", { name: "Receber código" }).click();
 
-  const readOtp = async () =>
-    JSON.parse(await readFile(".e2e/otp.json", "utf8").catch(() => "{}")) as {
-      code?: string;
-      phone?: string;
-    };
-  await expect.poll(async () => (await readOtp()).phone).toBe("+5562998286169");
-  const code = (await readOtp()).code ?? "";
+  let otp: { code?: string; phone?: string } = {};
+  await expect
+    .poll(async () => {
+      otp = JSON.parse(await readFile(".e2e/otp.json", "utf8").catch(() => "{}"));
+      return otp.phone;
+    })
+    .toBe("+5562998286169");
+  const code = otp.code ?? "";
 
   await page.getByLabel(/Código enviado/).fill(code);
   await page.getByRole("button", { name: "Confirmar" }).click();
