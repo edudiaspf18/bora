@@ -56,6 +56,39 @@ describe("throttle", () => {
     expect(await retryAfterMs("c", at(1))).toBeGreaterThan(0);
     const [row] = await adminSql`select failures, blocked_until from throttles where key = 'c'`;
     expect(row.blocked_until).not.toBeNull();
-    expect(row.failures).toBeLessThanOrEqual(5);
+    expect(row.failures).toBe(5);
+  });
+
+  it("4 ocorrências concorrentes contam exatamente 4 e não bloqueiam", async () => {
+    await Promise.all(Array.from({ length: 4 }, () => hit("d", OPTS, T0)));
+    const [row] = await adminSql`select failures, blocked_until from throttles where key = 'd'`;
+    expect(row.failures).toBe(4);
+    expect(row.blocked_until).toBeNull();
+  });
+
+  it("hit enquanto bloqueado não incrementa nem altera blocked_until", async () => {
+    for (let i = 1; i <= 5; i++) await hit("k", OPTS, at(i));
+    const [before] = await adminSql`select failures, blocked_until from throttles where key = 'k'`;
+    for (let i = 6; i <= 8; i++) {
+      expect(await hit("k", OPTS, at(i))).toEqual({ blocked: true });
+    }
+    const [after] = await adminSql`select failures, blocked_until from throttles where key = 'k'`;
+    expect(after.failures).toBe(5);
+    expect(after.blocked_until).toEqual(before.blocked_until);
+  });
+
+  it("hit espera o lock da linha (FOR UPDATE) e relê o valor commitado", async () => {
+    for (let i = 1; i <= 3; i++) await hit("k", OPTS, at(i));
+    let p!: Promise<{ blocked: boolean }>;
+    await adminSql.begin(async (t) => {
+      await t`select * from throttles where key = 'k' for update`;
+      p = hit("k", OPTS, at(10));
+      await new Promise((r) => setTimeout(r, 200)); // hit fica parado no lock
+      await t`update throttles set failures = 4 where key = 'k'`;
+    });
+    expect(await p).toEqual({ blocked: true });
+    const [row] = await adminSql`select failures, blocked_until from throttles where key = 'k'`;
+    expect(row.failures).toBe(5);
+    expect(row.blocked_until).not.toBeNull();
   });
 });
