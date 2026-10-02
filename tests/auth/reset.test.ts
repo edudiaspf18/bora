@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { verifyPassword } from "@/server/auth/password";
 import { confirmPasswordReset, requestPasswordReset, type Mailer } from "@/server/auth/reset";
 import { closeDb, db } from "@/server/db/client";
@@ -98,6 +98,35 @@ describe("reset de senha: concorrência", () => {
     await Promise.all(
       Array.from({ length: 10 }, (_, i) => requestPasswordReset("dono@exemplo.com", `3.3.3.${i}`, mailer)),
     );
-    expect(sent.length).toBeLessThanOrEqual(3);
+    expect(sent.length).toBe(3);
+  });
+
+  it("duas confirmações simultâneas do mesmo token: só uma vence", async () => {
+    await requestPasswordReset("dono@exemplo.com", "1.1.1.1", mailer);
+    const token = tokenFromMail();
+    const results = await Promise.all([
+      confirmPasswordReset(token, "senha-nova-aaaaaa"),
+      confirmPasswordReset(token, "senha-nova-bbbbbb"),
+    ]);
+    expect(results).toContainEqual({ ok: true });
+    expect(results).toContainEqual({ ok: false, reason: "invalid" });
+  });
+});
+
+describe("reset de senha: falha do mailer", () => {
+  it("não lança nem vaza o link no log", async () => {
+    const failing: Mailer = {
+      async send() {
+        throw new Error("smtp fora do ar");
+      },
+    };
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await expect(requestPasswordReset("dono@exemplo.com", "1.1.1.1", failing)).resolves.toBeUndefined();
+      expect(spy).toHaveBeenCalled();
+      expect(JSON.stringify(spy.mock.calls)).not.toContain("token=");
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

@@ -67,13 +67,19 @@ export async function requestPasswordReset(
     });
   });
 
-  await mailer.send(
-    user.email,
-    "Redefinir sua senha no Bora",
-    `Use o link para criar uma nova senha (vale por 30 minutos):\n` +
-      `${panelOrigin()}/redefinir-senha?token=${token}\n\n` +
-      `Se não foi você, ignore este e-mail.`,
-  );
+  // Falha do provedor não pode diferenciar conta existente de inexistente: engole e loga sem o link.
+  try {
+    await mailer.send(
+      user.email,
+      "Redefinir sua senha no Bora",
+      `Use o link para criar uma nova senha (vale por 30 minutos):\n` +
+        `${panelOrigin()}/redefinir-senha?token=${token}\n\n` +
+        `Se não foi você, ignore este e-mail.`,
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "erro desconhecido";
+    console.error(`[reset] falha ao enviar e-mail de redefinição (staff=${user.id}): ${message}`);
+  }
 }
 
 export type ResetResult = { ok: true } | { ok: false; reason: "invalid" | "weak" };
