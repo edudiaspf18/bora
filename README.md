@@ -51,3 +51,5 @@ BLOCKERS (não publicar sem resolver):
 
 - Spec: `docs/superpowers/specs/2026-10-02-bora-fundacao-design.md`
 - Plano: `docs/superpowers/plans/2026-10-02-bora-fundacao.md`
+
+Observação: a landing lê `PANEL_ORIGIN` na hora do `next build`; em produção defina a variável também no build.
