@@ -12,11 +12,12 @@ import { staffUsers } from "@/server/db/schema";
 
 const MAX_PASSWORD_LENGTH = 128;
 const EMAIL_LIMIT: ThrottleOpts = { max: 5, windowMs: 15 * 60_000, blockMs: 15 * 60_000 };
-const IP_LIMIT: ThrottleOpts = { max: 20, windowMs: 15 * 60_000, blockMs: 15 * 60_000 };
+// 60 por IP/15 min: teto folgado para NAT compartilhado; a barreira real é por e-mail.
+const IP_LIMIT: ThrottleOpts = { max: 60, windowMs: 15 * 60_000, blockMs: 15 * 60_000 };
 
 export const loginSchema = z.object({
   email: z.string().max(254),
-  password: z.string().min(1).max(128),
+  password: z.string().min(1).max(MAX_PASSWORD_LENGTH),
 });
 
 export function normalizeEmail(raw: string): string {
@@ -39,18 +40,23 @@ export async function authenticateStaff(
   const waits = await Promise.all([retryAfterMs(emailKey), retryAfterMs(ipKey)]);
   if (waits.some((ms) => ms > 0)) return { ok: false, reason: "throttled" };
 
+  // Reserva a tentativa ANTES do argon2: rajadas paralelas não ganham palpites extras.
+  // max + 1: a 6ª reserva é a que bloqueia, então só 5 tentativas chegam ao hash.
+  const [byEmail, byIp] = await Promise.all([
+    hit(emailKey, { ...EMAIL_LIMIT, max: EMAIL_LIMIT.max + 1 }),
+    hit(ipKey, IP_LIMIT),
+  ]);
+  if (byEmail.blocked || byIp.blocked) return { ok: false, reason: "throttled" };
+
   const [user] = await db.select().from(staffUsers).where(eq(staffUsers.email, email)).limit(1);
-  // Senha acima de 128 caracteres nunca chega ao argon2 (evita DoS por entrada gigante).
+  // Senha acima do limite nunca chega ao argon2 (evita DoS por entrada gigante).
   const matches =
     password.length > MAX_PASSWORD_LENGTH
       ? false
       : await verifyPassword(user?.passwordHash ?? (await dummyHash()), password);
 
-  if (!user || !matches) {
-    await Promise.all([hit(emailKey, EMAIL_LIMIT), hit(ipKey, IP_LIMIT)]);
-    return { ok: false, reason: "invalid" };
-  }
-  await resetThrottle(emailKey);
+  if (!user || !matches) return { ok: false, reason: "invalid" };
+  await resetThrottle(emailKey); // sem reembolso no IP: evita zerar o contador entre palpites
   return { ok: true, staffId: user.id };
 }
 

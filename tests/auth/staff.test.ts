@@ -1,4 +1,5 @@
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { verifyPassword } from "@/server/auth/password";
 import { writeAudit } from "@/server/audit";
 import { signSession } from "@/server/auth/session";
 import {
@@ -10,12 +11,18 @@ import {
 import { closeDb } from "@/server/db/client";
 import { adminSql, addMembership, closeAdmin, createStaff, createTenant, resetDb } from "../helpers/db";
 
+vi.mock("@/server/auth/password", async (importOriginal) => {
+  const m = await importOriginal<typeof import("@/server/auth/password")>();
+  return { ...m, verifyPassword: vi.fn(m.verifyPassword) };
+});
+
 const PASSWORD = "senha-correta-123";
 let tenantA: string;
 let tenantB: string;
 let staffId: string;
 
 beforeEach(async () => {
+  vi.mocked(verifyPassword).mockClear();
   await resetDb();
   tenantA = await createTenant("loja-a", "Loja A");
   tenantB = await createTenant("loja-b", "Loja B");
@@ -48,17 +55,32 @@ describe("authenticateStaff", () => {
     }
     expect(await authenticateStaff("dono@exemplo.com", PASSWORD, "8.8.8.8")).toEqual({ ok: false, reason: "throttled" });
   });
-  it("tentativas concorrentes também esbarram no bloqueio", async () => {
-    await Promise.all(
-      Array.from({ length: 20 }, () => authenticateStaff("dono@exemplo.com", "errada-errada-1", "7.7.7.7")),
+  it("20 tentativas concorrentes: no máximo 5 chegam ao argon2", async () => {
+    const results = await Promise.all(
+      Array.from({ length: 20 }, (_, i) =>
+        authenticateStaff("dono@exemplo.com", "errada-errada-1", `7.7.7.${i}`),
+      ),
     );
+    expect(vi.mocked(verifyPassword).mock.calls.length).toBeLessThanOrEqual(5);
+    expect(results.filter((r) => !r.ok && r.reason === "throttled").length).toBeGreaterThanOrEqual(15);
     expect(await authenticateStaff("dono@exemplo.com", PASSWORD, "6.6.6.6")).toEqual({ ok: false, reason: "throttled" });
   });
-  it("senha gigante é rejeitada antes do hash", async () => {
-    const started = Date.now();
+  it("senha gigante não chega ao argon2, mas consome tentativa", async () => {
     const r = await authenticateStaff("dono@exemplo.com", "a".repeat(10_000), "1.1.1.1");
     expect(r).toEqual({ ok: false, reason: "invalid" });
-    expect(Date.now() - started).toBeLessThan(1000);
+    expect(verifyPassword).not.toHaveBeenCalled();
+    const rows = await adminSql`select 1 from throttles where key = 'staff:email:dono@exemplo.com'`;
+    expect(rows.length).toBe(1);
+  });
+  it("limite por IP: acima do teto, bloqueia sem chegar ao argon2", async () => {
+    await adminSql`insert into throttles (key, failures, window_start) values ('staff:ip:9.9.9.9', 58, now())`;
+    const first = await authenticateStaff("a@exemplo.com", "errada-errada-1", "9.9.9.9");
+    expect(first).toEqual({ ok: false, reason: "invalid" });
+    vi.mocked(verifyPassword).mockClear();
+    for (let i = 0; i < 3; i++) {
+      expect(await authenticateStaff("dono@exemplo.com", PASSWORD, "9.9.9.9")).toEqual({ ok: false, reason: "throttled" });
+    }
+    expect(verifyPassword).not.toHaveBeenCalled();
   });
   it("login correto zera o contador de falhas do e-mail", async () => {
     for (let i = 0; i < 3; i++) {
