@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { describe, expect, it } from "vitest";
-import { middleware } from "@/middleware";
+import { config, middleware } from "@/middleware";
 
 function req(host: string, path = "/") {
   return new NextRequest(`http://${host}${path}`, { headers: { host } });
@@ -43,5 +43,38 @@ describe("middleware", () => {
     const nonce = res.headers.get("x-middleware-request-x-nonce") ?? "";
     expect(nonce.length).toBeGreaterThan(10);
     expect(csp).toContain(`'nonce-${nonce}'`);
+  });
+  it("paths pontuados internos dão 404 em qualquer host", () => {
+    for (const p of ["/s/cardapio.loja.com.br", "/panel/x.y", "/s/demo/a.b"]) {
+      expect(middleware(req("bora.test", p)).status).toBe(404);
+    }
+    expect(middleware(req("demo.bora.test", "/s/cardapio.loja.com.br")).status).toBe(404);
+    expect(middleware(req("demo.bora.test", "/panel/x.y")).status).toBe(404);
+  });
+  it("paths codificados ou estranhos dão 404", () => {
+    for (const p of ["/%70anel/login", "/%73/demo", "//s/demo", "/S/demo", "/PANEL", "/%E0%A4%A"]) {
+      expect(middleware(req("bora.test", p)).status).toBe(404);
+    }
+  });
+  it("arquivo estático na vitrine não é reescrito e leva CSP", () => {
+    const res = middleware(req("demo.bora.test", "/logo.svg"));
+    expect(res.status).not.toBe(404);
+    expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+    expect(res.headers.get("content-security-policy")).toBeTruthy();
+  });
+  it("404 leva CSP", () => {
+    const res = middleware(req("bora.test", "/panel"));
+    expect(res.headers.get("content-security-policy")).toBeTruthy();
+  });
+  it("CSP no request em resposta pass-through", () => {
+    const res = middleware(req("bora.test", "/"));
+    const nonce = res.headers.get("x-middleware-request-x-nonce") ?? "";
+    expect(res.headers.get("x-middleware-request-content-security-policy")).toContain(`'nonce-${nonce}'`);
+  });
+  it("matcher cobre paths pontuados internos e ignora _next/static", () => {
+    const re = new RegExp("^" + config.matcher[0] + "$");
+    expect(re.test("/s/cardapio.loja.com.br")).toBe(true);
+    expect(re.test("/panel/x.y")).toBe(true);
+    expect(re.test("/_next/static/x.js")).toBe(false);
   });
 });

@@ -2,12 +2,21 @@ import { NextResponse, type NextRequest } from "next/server";
 import { buildCsp } from "@/server/security/csp";
 import { resolveHost, segmentFor } from "@/server/tenancy/host";
 
-// Arquivos com extensão (public/) e assets do Next não passam pelo middleware.
+// Só assets do Next ficam fora; paths pontuados passam pelo guard e pelo CSP.
 export const config = {
-  matcher: ["/((?!_next|favicon.ico|.*\\..*).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };
 
-function isInternalPath(pathname: string): boolean {
+const STATIC_FILE_RE = /\.[a-z0-9]+$/i;
+
+function isInternalPath(rawPathname: string): boolean {
+  let pathname: string;
+  try {
+    pathname = decodeURIComponent(rawPathname);
+  } catch {
+    return true; // encoding malformado: trata como inválido (404)
+  }
+  pathname = pathname.replace(/\/+/g, "/").toLowerCase();
   return (
     pathname === "/panel" ||
     pathname.startsWith("/panel/") ||
@@ -17,7 +26,7 @@ function isInternalPath(pathname: string): boolean {
 }
 
 function notFound(csp: string): NextResponse {
-  const res = new NextResponse("Not found", { status: 404 });
+  const res = new NextResponse("Não encontrado", { status: 404 });
   res.headers.set("Content-Security-Policy", csp);
   return res;
 }
@@ -36,7 +45,7 @@ export function middleware(req: NextRequest): NextResponse {
   if (target.kind === "unknown" || isInternalPath(pathname)) return notFound(csp);
 
   let res: NextResponse;
-  if (target.kind === "landing") {
+  if (target.kind === "landing" || STATIC_FILE_RE.test(pathname)) {
     res = NextResponse.next({ request: { headers } });
   } else {
     const url = req.nextUrl.clone();
