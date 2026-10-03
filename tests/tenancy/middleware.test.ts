@@ -101,4 +101,10 @@ describe("middleware", () => {
     expect(re.test("/panel/x.y")).toBe(true);
     expect(re.test("/_next/static/x.js")).toBe(false);
   });
+  it("matcher deixa todo /_next (HMR, data) fora do middleware", () => {
+    const re = new RegExp("^" + config.matcher[0] + "$");
+    expect(re.test("/_next/webpack-hmr")).toBe(false);
+    expect(re.test("/_next/data/b/x.json")).toBe(false);
+    expect(re.test("/_nextfoo")).toBe(true);
+  });
 });

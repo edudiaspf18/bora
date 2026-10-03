@@ -2,9 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { buildCsp } from "@/server/security/csp";
 import { effectiveHost, resolveHost, segmentFor } from "@/server/tenancy/host";
 
-// Só assets do Next ficam fora; paths pontuados passam pelo guard e pelo CSP.
+// Todo /_next (static, image, HMR, data) fica fora; paths pontuados passam pelo guard e pelo CSP.
+// /api em hosts de loja/painel é reescrito para /s/{slug}/api: decidir passthrough vs. rewrite no sub-projeto 3, antes da primeira rota.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/|favicon.ico).*)"],
 };
 
 const STATIC_FILE_RE = /\.[a-z0-9]+$/i;
