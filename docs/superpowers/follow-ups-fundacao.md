@@ -39,3 +39,9 @@ Origem: ledger da execução do plano 2026-10-02-bora-fundacao. Cada linha é um
 - Task final: parked — migrate() lacks empty-password guard (script guards; env set-but-empty passes vitest ??=) — Ruling: LATER, trivial hardening
 - Task final: parked — landing page prerenders PANEL_ORIGIN at build (throws at build in prod if unset) — Ruling: README note added by controller; mark dynamic later
 - Task final: complete (commits 98e087b..39e85f9, 1 re-review, 3 parked)
+
+## Hardening final (plano 2026-10-02-bora-fundacao-hardening)
+
+Resolvidos: `?reset=ok` no login; OTP e link de reset fora do log em produção; token redigido na falha do mailer; `send_failed` tipado no OTP; `hit` sem TypeError em reset concorrente e fail-closed com data ilegível; `dummyHash` sem cachear rejeição; `/_next/*` fora do middleware; sidebar escuro em zinc; `.gitignore` sem duplicatas. Já estavam resolvidos na wave final: tenant pelo host, `ROOT_DOMAIN`/`PANEL_ORIGIN` fail-closed, `Object.hasOwn(ERRORS)`.
+
+Backlog restante (mantido): grants RLS de `bora_app` em tabelas globais; purge de tokens/throttles; revogação de sessão na troca de senha; token de reset concorrente (dois vivos); `confirmPasswordReset` sem throttle; testes fracos de RLS e de actions; validação DDD em `phone.ts`; `/api/*` em hosts de loja (decidir no sub-projeto 3); `revalidateTag("tenants")` (sub-projeto 4); canal WhatsApp real (sub-projeto 5); sem teste unitário do retry de `dummyHash`.
