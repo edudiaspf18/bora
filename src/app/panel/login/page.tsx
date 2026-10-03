@@ -14,9 +14,11 @@ const ERRORS: Record<string, string> = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string | string[] }>;
+  searchParams: Promise<{ error?: string | string[]; reset?: string | string[] }>;
 }) {
-  const error = first((await searchParams).error);
+  const params = await searchParams;
+  const error = first(params.error);
+  const resetOk = first(params.reset) === "ok";
   const message = error && Object.hasOwn(ERRORS, error) ? ERRORS[error] : undefined;
 
   return (
@@ -33,6 +35,11 @@ export default async function LoginPage({
           <Label htmlFor="password">Senha</Label>
           <Input id="password" name="password" type="password" autoComplete="current-password" required maxLength={128} />
         </div>
+        {resetOk ? (
+          <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
+            Senha redefinida. Entre com a nova senha.
+          </p>
+        ) : null}
         {message ? (
           <p role="alert" className="text-sm text-red-600 dark:text-red-400">
             {message}
