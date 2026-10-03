@@ -13,6 +13,7 @@ const ERRORS: Record<string, string> = {
   invalid: "Código incorreto.",
   expired: "Código expirado. Peça um novo.",
   locked: "Muitas tentativas erradas. Peça um novo código.",
+  send_failed: "Não foi possível enviar o código. Tente novamente.",
 };
 
 type Param = string | string[] | undefined;

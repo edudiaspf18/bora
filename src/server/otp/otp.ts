@@ -23,7 +23,7 @@ function hashCode(code: string, tenantId: string, phone: string): string {
 
 export type IssueResult =
   | { ok: true; phone: string }
-  | { ok: false; reason: "invalid_phone" | "throttled" };
+  | { ok: false; reason: "invalid_phone" | "throttled" | "send_failed" };
 
 export async function issueOtp(args: {
   tenantId: string;
@@ -75,7 +75,13 @@ export async function issueOtp(args: {
       expiresAt: new Date(now.getTime() + CODE_TTL_MS),
     });
   });
-  await args.sender.send(phone, code, { tenantSlug: args.tenantSlug });
+  try {
+    await args.sender.send(phone, code, { tenantSlug: args.tenantSlug });
+  } catch {
+    // Não vaza a exceção do provedor (pode ecoar o corpo da mensagem).
+    console.error(`[otp] falha ao enviar código (loja=${args.tenantSlug})`);
+    return { ok: false, reason: "send_failed" };
+  }
   return { ok: true, phone };
 }
 

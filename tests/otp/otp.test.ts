@@ -45,6 +45,15 @@ describe("generateCode", () => {
 });
 
 describe("issueOtp", () => {
+  it("falha do sender vira send_failed tipado, sem lançar", async () => {
+    const failing: OtpSender = {
+      async send() {
+        throw new Error("provedor fora");
+      },
+    };
+    expect(await issue({ sender: failing })).toEqual({ ok: false, reason: "send_failed" });
+  });
+
   it("telefone inválido é recusado sem enviar", async () => {
     expect(await issue({ rawPhone: "abc" })).toEqual({ ok: false, reason: "invalid_phone" });
     expect(sent.length).toBe(0);
