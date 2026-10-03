@@ -36,12 +36,18 @@ export async function hit(
     const rows = await tx.execute(sql`
       select failures, window_start, blocked_until
       from throttles where key = ${key} for update`);
-    const row = rows[0] as unknown as Row;
+    const row = rows[0] as unknown as Row | undefined;
+    // Linha removida por reset concorrente: a próxima ocorrência abre nova janela.
+    if (!row) return { blocked: false };
 
     const prevBlock = row.blocked_until === null ? null : toDate(row.blocked_until);
+    const prevWindow = toDate(row.window_start);
+    // Data ilegível: falha fechado em vez de liberar (ou lançar RangeError no toISOString).
+    if (Number.isNaN(prevWindow.getTime()) || (prevBlock && Number.isNaN(prevBlock.getTime()))) {
+      return { blocked: true };
+    }
     if (prevBlock && prevBlock > now) return { blocked: true };
 
-    const prevWindow = toDate(row.window_start);
     const reset = prevBlock !== null || now.getTime() - prevWindow.getTime() > opts.windowMs;
     const failures = (reset ? 0 : row.failures) + 1;
     const windowStart = reset ? now : prevWindow;

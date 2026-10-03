@@ -14,6 +14,20 @@ afterAll(async () => {
 });
 
 describe("throttle", () => {
+  it("hit concorrente com resetThrottle nunca lança", async () => {
+    for (let i = 0; i < 20; i++) {
+      await Promise.all([hit("race", OPTS), resetThrottle("race"), hit("race", OPTS)]);
+    }
+  });
+
+  it("window_start ilegível falha fechado (bloqueia)", async () => {
+    await hit("k", OPTS, T0);
+    await adminSql`update throttles set window_start = 'infinity' where key = 'k'`;
+    // infinity vira Invalid Date no cliente: não pode liberar
+    const res = await hit("k", OPTS, at(1));
+    expect(res.blocked).toBe(true);
+  });
+
   it("chave nova não está bloqueada", async () => {
     expect(await retryAfterMs("k", T0)).toBe(0);
   });

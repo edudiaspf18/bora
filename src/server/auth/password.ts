@@ -21,5 +21,9 @@ export async function verifyPassword(stored: string, plain: string): Promise<boo
 let dummy: Promise<string> | undefined;
 /** Hash descartável para igualar o tempo de resposta quando o usuário não existe. */
 export function dummyHash(): Promise<string> {
-  return (dummy ??= hashPassword("senha-descartavel-para-tempo-constante"));
+  dummy ??= hashPassword("senha-descartavel-para-tempo-constante").catch((err: unknown) => {
+    dummy = undefined; // não cacheia rejeição: a próxima chamada tenta de novo
+    throw err;
+  });
+  return dummy;
 }
