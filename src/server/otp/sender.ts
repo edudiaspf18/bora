@@ -1,0 +1,36 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+
+export interface OtpSender {
+  send(phone: string, code: string, ctx: { tenantSlug: string }): Promise<void>;
+}
+
+export const consoleSender: OtpSender = {
+  async send(phone, code, ctx) {
+    // Em produção o código nunca vai para o log (enquanto não há canal real).
+    const shown = process.env.NODE_ENV === "production" ? "[redigido]" : code;
+    console.log(`[otp] loja=${ctx.tenantSlug} telefone=${phone} codigo=${shown}`);
+  },
+};
+
+/** Só para E2E: grava o último código em arquivo. Bloqueado em produção, salvo opt-in explícito do E2E. */
+const fileSender: OtpSender = {
+  async send(phone, code, ctx) {
+    const file = process.env.OTP_FILE ?? ".e2e/otp.json";
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, JSON.stringify({ phone, code, tenant: ctx.tenantSlug }));
+  },
+};
+
+/** O canal real (WhatsApp) entra no sub-projeto 5, atrás desta interface. */
+export function getOtpSender(): OtpSender {
+  const root = (process.env.ROOT_DOMAIN ?? "").toLowerCase();
+  const localRoot = root === "localhost" || root.endsWith(".localhost");
+  const allowed =
+    process.env.NODE_ENV !== "production" ||
+    (process.env.E2E_UNSAFE_FILE_OTP === "1" && localRoot);
+  if (process.env.OTP_SENDER === "file" && allowed) {
+    return fileSender;
+  }
+  return consoleSender;
+}

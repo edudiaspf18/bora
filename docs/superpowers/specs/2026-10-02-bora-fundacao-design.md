@@ -40,7 +40,7 @@ Fora de escopo (sub-projetos seguintes, cada um com spec própria):
 
 ## 4. Modelo de dados
 
-Convenções: UUID v7; dinheiro em centavos (`integer`); datas em `timestamptz`, exibidas no timezone da loja.
+Convenções: UUID v7 gerado pelo app nos inserts via Drizzle (o default do banco é `gen_random_uuid()`, v4, para inserts diretos como o seed); dinheiro em centavos (`integer`); datas em `timestamptz`, exibidas no timezone da loja.
 
 **Tabelas globais (sem RLS).** `tenants` e `tenant_domains` são globais porque a vitrine precisa resolver a loja antes de saber o `tenant_id`.
 
@@ -76,7 +76,7 @@ Também existem tabelas de apoio de auth: tokens de reset de senha, códigos OTP
 - E-mail + senha com Argon2id. Sessão JWT própria (biblioteca `jose`) em cookie `httpOnly`, `secure`, `sameSite=lax`. Não usa Auth.js: staff e cliente compartilham o mesmo módulo de sessão e o tenant ativo é um claim do próprio token.
 - Staff com mais de uma loja escolhe a loja ativa. O `tenant_id` da sessão é revalidado contra `staff_memberships` a cada request.
 - Papéis: `owner` (tudo, inclusive equipe e cobrança), `manager` (catálogo, pedidos, configurações), `attendant` (pedidos e estoque do dia). Checagem centralizada em `can(papel, ação)`.
-- Brute force: 5 falhas bloqueiam por 15 min, por e-mail e por IP, contador no Postgres.
+- Brute force: 5 tentativas por e-mail por janela de 15 min, depois bloqueio de 15 min; por IP o limite é 60 tentativas (um IP pode ser uma rede inteira); contador no Postgres e a tentativa é reservada de forma atômica antes do Argon2.
 - Reset de senha por e-mail, token de uso único, validade de 30 min.
 
 **Cliente (`{slug}.bora.app`)**
@@ -98,10 +98,10 @@ Também existem tabelas de apoio de auth: tokens de reset de senha, códigos OTP
 A interface é monocromática (Zinc). Cada loja personaliza **uma cor de destaque**, logo, fonte e raio.
 
 - Tokens fixos: `--background`, `--foreground`, `--muted`, `--border`. Tokens por loja: `--brand`, `--brand-foreground`, `--radius`. O `--primary` do Shadcn é mapeado para `--brand` no layout do tenant. (O nome `--accent` já é usado pelo Shadcn para outra coisa.)
-- `tenant_settings.theme` (validado com Zod): `accent` (12 presets curados + hex livre), `logoUrl` (URL nesta fase; upload no sub-projeto 2), `font` (3 opções curadas: Geist, Inter, uma serifada editorial), `radius` (`sm`, `md`, `lg`).
+- `tenant_settings.theme` (validado com Zod): `accent` (hex livre validado pela guarda de contraste; presets curados ficam para o painel de configurações, sub-projeto 4), `logoUrl` (URL nesta fase; upload no sub-projeto 2), `font` (3 opções curadas: Geist, Inter, uma serifada editorial), `radius` (`sm`, `md`, `lg`).
 - Guarda de contraste WCAG: o sistema escolhe `brand-foreground` branco ou preto (o de maior contraste, sempre ≥ 4.5:1) e rejeita cores quase idênticas ao fundo branco ou ao fundo preto, que sumiriam em um dos modos.
 - Modo claro e escuro automáticos.
-- Injeção sem flash: o layout do tenant (Server Component) lê o tema (cache por slug) e escreve as variáveis em `<style nonce>` no `<head>`.
+- Injeção sem flash: o layout do tenant (Server Component) lê o tema (cache por slug) e escreve as variáveis em `<style nonce>` no HTML do servidor (no início do corpo da página).
 
 **Marca Bora:** wordmark "bora" em minúsculas, tipografia pesada com `tracking-tight`. Destaque da plataforma: laranja-queimado `#EA580C`.
 
