@@ -16,6 +16,11 @@ export interface Mailer {
 
 export const consoleMailer: Mailer = {
   async send(to, subject, text) {
+    // Em produção o corpo (link com token) nunca vai para o log.
+    if (process.env.NODE_ENV === "production") {
+      console.log(`[mail] para=${to} assunto="${subject}"`);
+      return;
+    }
     console.log(`[mail] para=${to} assunto="${subject}"\n${text}`);
   },
 };
@@ -80,7 +85,8 @@ export async function requestPasswordReset(
         `Se não foi você, ignore este e-mail.`,
     );
   } catch (err) {
-    const message = err instanceof Error ? err.message : "erro desconhecido";
+    const raw = err instanceof Error ? err.message : "erro desconhecido";
+    const message = raw.replace(/token=\S+/g, "token=[redigido]");
     console.error(`[reset] falha ao enviar e-mail de redefinição (staff=${user.id}): ${message}`);
   }
 }

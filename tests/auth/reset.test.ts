@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { hashPassword, verifyPassword } from "@/server/auth/password";
-import { confirmPasswordReset, panelOrigin, requestPasswordReset, type Mailer } from "@/server/auth/reset";
+import { confirmPasswordReset, consoleMailer, panelOrigin, requestPasswordReset, type Mailer } from "@/server/auth/reset";
 import { closeDb, db } from "@/server/db/client";
 import { staffUsers } from "@/server/db/schema";
 import { adminSql, closeAdmin, createStaff, resetDb } from "../helpers/db";
@@ -161,5 +161,30 @@ describe("panelOrigin", () => {
   it("fora de produção cai no fallback local", () => {
     vi.stubEnv("PANEL_ORIGIN", undefined);
     expect(panelOrigin()).toBe("http://app.localhost:3000");
+  });
+});
+
+describe("logs sem segredo", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it("consoleMailer em produção não loga o link", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    await consoleMailer.send("a@b.com", "Assunto", "https://x/redefinir-senha?token=SEGREDO123");
+    expect(JSON.stringify(log.mock.calls)).not.toContain("SEGREDO123");
+  });
+
+  it("falha do mailer não loga o token", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const failing: Mailer = {
+      async send() {
+        throw new Error("provedor: corpo token=SEGREDO456 recusado");
+      },
+    };
+    await requestPasswordReset("dono@exemplo.com", "9.9.9.9", failing);
+    expect(JSON.stringify(err.mock.calls)).not.toContain("SEGREDO456");
   });
 });

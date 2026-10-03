@@ -1,7 +1,25 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { consoleSender, getOtpSender } from "@/server/otp/sender";
 
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+});
+
+describe("consoleSender", () => {
+  it("produção não loga o código", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    await consoleSender.send("5511999999999", "123456", { tenantSlug: "x" });
+    expect(JSON.stringify(log.mock.calls)).not.toContain("123456");
+  });
+  it("fora de produção loga o código", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    await consoleSender.send("5511999999999", "123456", { tenantSlug: "x" });
+    expect(JSON.stringify(log.mock.calls)).toContain("123456");
+  });
+});
 
 describe("getOtpSender", () => {
   it("produção ignora OTP_SENDER=file", () => {

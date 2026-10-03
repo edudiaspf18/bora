@@ -7,7 +7,9 @@ export interface OtpSender {
 
 export const consoleSender: OtpSender = {
   async send(phone, code, ctx) {
-    console.log(`[otp] loja=${ctx.tenantSlug} telefone=${phone} codigo=${code}`);
+    // Em produção o código nunca vai para o log (enquanto não há canal real).
+    const shown = process.env.NODE_ENV === "production" ? "[redigido]" : code;
+    console.log(`[otp] loja=${ctx.tenantSlug} telefone=${phone} codigo=${shown}`);
   },
 };
 
