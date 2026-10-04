@@ -97,7 +97,7 @@ Regras:
 - Toda escrita começa com `requireAction("catalog:edit")` (dono e gerente). **Pausar** exige só `stock:edit`, que o atendente já tem: quem está no balcão pausa sem poder editar preço.
 - Cada comando grava auditoria (`catalog.product.create`, `catalog.product.pause` etc.) com o id em `resource`.
 - Nenhum comando aceita `tenant_id` do cliente. Id de outra loja não existe pela RLS e devolve `not_found`.
-- Resultado tipado, sem exceção para erro de negócio: `{ ok: true, id } | { ok: false, reason: "not_found" | "invalid" | "conflict" }`.
+- Resultado tipado, sem exceção para erro de negócio: `{ ok: true, id } | { ok: false, reason: "not_found" | "invalid" }` (não há restrição de unicidade que gere conflito neste sub-projeto); `applyTemplate` devolve `reason: "not_empty"`.
 - Duplicar copia produto, variações, grupos e horários em uma transação, com nome "(cópia)" e `ativo=false`. Duplicar categoria copia a categoria e seus produtos.
 - Reordenar recebe a lista completa de ids; id estranho ou ausente aborta a operação.
 - A listagem depende de `now`, então não entra em cache de página.
@@ -148,7 +148,7 @@ A home da loja (`/s/[slug]/page.tsx`) passa a mostrar o cardápio, somente leitu
 - Categoria sem item visível não aparece. Loja sem catálogo mantém o texto atual.
 - Filtro por etiqueta (`?dieta=vegan`) lido no servidor, com chips só das etiquetas existentes.
 - Detalhe do produto em `/p/[id]`: variações, preços e grupos com a regra em texto, somente leitura.
-- `image_url` só aceita `https:`. O CSP (`src/server/security/csp.ts`) precisa liberar `img-src https:`, com teste. `<img>` com `loading="lazy"`, `width` e `height`.
+- `image_url` só aceita `https:`. O CSP (`src/server/security/csp.ts`) já libera `img-src https:`; um teste passa a travar esse comportamento. `<img>` com `loading="lazy"`, `width` e `height`.
 - Metadados com o nome da loja. Sem JSON-LD no v1.
 
 ## 8. Testes
