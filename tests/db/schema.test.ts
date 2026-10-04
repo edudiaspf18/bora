@@ -21,8 +21,18 @@ describe("schema", () => {
     const perTenant = rows.filter((r) => !GLOBAL_WITH_TENANT_COLUMN.has(r.name as string));
     expect(perTenant.map((r) => r.name).sort()).toEqual([
       "audit_log",
+      "catalog_categories",
+      "catalog_products",
+      "catalog_variants",
+      "category_schedules",
       "customer_profiles",
+      "option_groups",
+      "option_items",
       "otp_codes",
+      "product_option_groups",
+      "product_schedules",
+      "schedule_windows",
+      "schedules",
       "staff_memberships",
       "tenant_settings",
     ]);

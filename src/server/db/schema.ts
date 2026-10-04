@@ -127,3 +127,105 @@ export const otpCodes = pgTable("otp_codes", {
   consumedAt: timestamp("consumed_at", { withTimezone: true }),
   createdAt: createdAt(),
 });
+
+const tenantRef = () =>
+  uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" });
+
+// As FKs compostas (tenant_id, id) vivem na migration 0005; aqui só os tipos.
+export const catalogCategories = pgTable("catalog_categories", {
+  id: id(),
+  tenantId: tenantRef(),
+  name: text("name").notNull(),
+  position: integer("position").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+});
+
+export const catalogProducts = pgTable("catalog_products", {
+  id: id(),
+  tenantId: tenantRef(),
+  categoryId: uuid("category_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  imageUrl: text("image_url"),
+  position: integer("position").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+  pausedUntil: timestamp("paused_until", { withTimezone: true }),
+  dietary: text("dietary").array().notNull().default(sql`'{}'`),
+});
+
+export const catalogVariants = pgTable("catalog_variants", {
+  id: id(),
+  tenantId: tenantRef(),
+  productId: uuid("product_id").notNull(),
+  name: text("name").notNull(),
+  priceCents: integer("price_cents").notNull(),
+  position: integer("position").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+});
+
+export const optionGroups = pgTable("option_groups", {
+  id: id(),
+  tenantId: tenantRef(),
+  name: text("name").notNull(),
+  minSelect: integer("min_select").notNull().default(0),
+  maxSelect: integer("max_select").notNull().default(1),
+  position: integer("position").notNull().default(0),
+});
+
+export const optionItems = pgTable("option_items", {
+  id: id(),
+  tenantId: tenantRef(),
+  groupId: uuid("group_id").notNull(),
+  name: text("name").notNull(),
+  priceDeltaCents: integer("price_delta_cents").notNull().default(0),
+  position: integer("position").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+});
+
+export const productOptionGroups = pgTable(
+  "product_option_groups",
+  {
+    tenantId: tenantRef(),
+    productId: uuid("product_id").notNull(),
+    groupId: uuid("group_id").notNull(),
+    position: integer("position").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.productId, t.groupId] })],
+);
+
+export const schedules = pgTable("schedules", {
+  id: id(),
+  tenantId: tenantRef(),
+  name: text("name").notNull(),
+});
+
+export const scheduleWindows = pgTable("schedule_windows", {
+  id: id(),
+  tenantId: tenantRef(),
+  scheduleId: uuid("schedule_id").notNull(),
+  weekday: integer("weekday").notNull(),
+  opensMin: integer("opens_min").notNull(),
+  closesMin: integer("closes_min").notNull(),
+});
+
+export const categorySchedules = pgTable(
+  "category_schedules",
+  {
+    tenantId: tenantRef(),
+    categoryId: uuid("category_id").notNull(),
+    scheduleId: uuid("schedule_id").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.categoryId, t.scheduleId] })],
+);
+
+export const productSchedules = pgTable(
+  "product_schedules",
+  {
+    tenantId: tenantRef(),
+    productId: uuid("product_id").notNull(),
+    scheduleId: uuid("schedule_id").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.productId, t.scheduleId] })],
+);
