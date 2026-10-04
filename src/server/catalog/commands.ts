@@ -1,10 +1,15 @@
-import { eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { writeAudit } from "@/server/audit";
 import type { Tx } from "@/server/db/client";
-import { catalogCategories, catalogProducts, catalogVariants, categorySchedules } from "@/server/db/schema";
+import {
+  catalogCategories, catalogProducts, catalogVariants, categorySchedules, optionGroups, scheduleWindows, schedules,
+} from "@/server/db/schema";
 import { withTenant } from "@/server/db/tenant";
-import { categoryInputSchema, productInputSchema } from "./schemas";
-import { countExisting, insertCategory, insertProduct, syncProductChildren } from "./writers";
+import { categoryInputSchema, optionGroupInputSchema, productInputSchema, scheduleInputSchema } from "./schemas";
+import {
+  cloneProduct, countExisting, insertCategory, insertOptionGroup, insertProduct, insertSchedule,
+  syncOptionItems, syncProductChildren,
+} from "./writers";
 
 export interface Ctx {
   tenantId: string;
@@ -136,4 +141,75 @@ export async function reorderProducts(ctx: Ctx, categoryId: string, ids: string[
 
 function sameSet(a: string[], b: string[]): boolean {
   return a.length === b.length && new Set(b).size === b.length && a.every((id) => b.includes(id));
+}
+
+export async function createOptionGroup(ctx: Ctx, raw: unknown): Promise<Result> {
+  const parsed = optionGroupInputSchema.safeParse(raw);
+  if (!parsed.success) return INVALID;
+  return run(ctx, "catalog.group.create", async (tx) => ({ ok: true, id: await insertOptionGroup(tx, ctx.tenantId, parsed.data) }));
+}
+
+export async function updateOptionGroup(ctx: Ctx, id: string, raw: unknown): Promise<Result> {
+  const parsed = optionGroupInputSchema.safeParse(raw);
+  if (!parsed.success) return INVALID;
+  return run(ctx, "catalog.group.update", async (tx) => {
+    if ((await countExisting(tx, "option_groups", [id])) !== 1) return NOT_FOUND;
+    // sync valida ids (repetidos/de outro grupo) antes de escrever; só então mexe no grupo
+    if (!(await syncOptionItems(tx, ctx.tenantId, id, parsed.data))) return INVALID;
+    await tx.update(optionGroups)
+      .set({ name: parsed.data.name, minSelect: parsed.data.minSelect, maxSelect: parsed.data.maxSelect })
+      .where(eq(optionGroups.id, id));
+    return { ok: true, id };
+  });
+}
+
+export async function createSchedule(ctx: Ctx, raw: unknown): Promise<Result> {
+  const parsed = scheduleInputSchema.safeParse(raw);
+  if (!parsed.success) return INVALID;
+  return run(ctx, "catalog.schedule.create", async (tx) => ({ ok: true, id: await insertSchedule(tx, ctx.tenantId, parsed.data) }));
+}
+
+export async function updateSchedule(ctx: Ctx, id: string, raw: unknown): Promise<Result> {
+  const parsed = scheduleInputSchema.safeParse(raw);
+  if (!parsed.success) return INVALID;
+  return run(ctx, "catalog.schedule.update", async (tx) => {
+    if ((await countExisting(tx, "schedules", [id])) !== 1) return NOT_FOUND;
+    await tx.update(schedules).set({ name: parsed.data.name }).where(eq(schedules.id, id));
+    await tx.delete(scheduleWindows).where(eq(scheduleWindows.scheduleId, id));
+    await tx.insert(scheduleWindows).values(
+      parsed.data.windows.map((w) => ({ tenantId: ctx.tenantId, scheduleId: id, weekday: w.weekday, opensMin: w.opensMin, closesMin: w.closesMin })),
+    );
+    return { ok: true, id };
+  });
+}
+
+export async function duplicateProduct(ctx: Ctx, id: string): Promise<Result> {
+  return run(ctx, "catalog.product.duplicate", async (tx) => {
+    const [src] = await tx.select({ name: catalogProducts.name, categoryId: catalogProducts.categoryId })
+      .from(catalogProducts).where(eq(catalogProducts.id, id));
+    if (!src) return NOT_FOUND;
+    const copy = await cloneProduct(tx, ctx.tenantId, id, { categoryId: src.categoryId, name: `${src.name} (cópia)`, active: false });
+    return copy ? { ok: true, id: copy } : NOT_FOUND;
+  });
+}
+
+export async function duplicateCategory(ctx: Ctx, id: string): Promise<Result> {
+  return run(ctx, "catalog.category.duplicate", async (tx) => {
+    const [src] = await tx.select().from(catalogCategories).where(eq(catalogCategories.id, id));
+    if (!src) return NOT_FOUND;
+    const scheds = await tx.select().from(categorySchedules).where(eq(categorySchedules.categoryId, id));
+    const copyId = await insertCategory(tx, ctx.tenantId, {
+      name: `${src.name} (cópia)`.slice(0, 80),
+      scheduleIds: scheds.map((s) => s.scheduleId),
+    });
+    await tx.update(catalogCategories).set({ active: false }).where(eq(catalogCategories.id, copyId));
+    const products = await tx.select({ id: catalogProducts.id, name: catalogProducts.name })
+      .from(catalogProducts)
+      .where(and(eq(catalogProducts.categoryId, id), eq(catalogProducts.active, true)))
+      .orderBy(asc(catalogProducts.position));
+    for (const p of products) {
+      await cloneProduct(tx, ctx.tenantId, p.id, { categoryId: copyId, name: p.name, active: true });
+    }
+    return { ok: true, id: copyId };
+  });
 }
