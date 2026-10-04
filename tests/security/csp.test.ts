@@ -13,4 +13,9 @@ describe("buildCsp", () => {
   it("dev: permite eval para o refresh do React", () => {
     expect(buildCsp("n", true)).toContain("'unsafe-eval'");
   });
+  it("imagens: só https e data:, nunca http", () => {
+    const csp = buildCsp("n", false);
+    expect(csp).toContain("img-src 'self' data: https:");
+    expect(csp).not.toMatch(/img-src[^;]*\bhttp:/);
+  });
 });
