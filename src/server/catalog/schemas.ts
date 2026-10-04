@@ -29,16 +29,25 @@ export const categoryInputSchema = z.object({
 });
 export type CategoryInput = z.infer<typeof categoryInputSchema>;
 
-const httpsUrl = z
-  .string()
-  .max(500)
-  .refine((v) => {
-    try {
-      return new URL(v).protocol === "https:";
-    } catch {
-      return false;
-    }
-  }, "só https");
+/**
+ * Espelha o CHECK do banco (`image_url ~ '^https://'` e <= 500): apara, exige `https://`
+ * literal (sem `https:x.com`) e grava o href normalizado (esquema em minúsculas).
+ */
+const httpsUrl = z.string().trim().transform((v, ctx) => {
+  const invalid = (message: string) => {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message });
+    return z.NEVER;
+  };
+  if (!/^https:\/\//i.test(v)) return invalid("só https");
+  let href: string;
+  try {
+    href = new URL(v).href;
+  } catch {
+    return invalid("url inválida");
+  }
+  if (!/^https:\/\//.test(href) || href.length > 500) return invalid("url inválida ou longa demais");
+  return href;
+});
 
 export const productInputSchema = z.object({
   categoryId: uuid,

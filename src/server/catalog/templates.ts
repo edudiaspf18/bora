@@ -142,6 +142,8 @@ export type ApplyResult = { ok: true } | { ok: false; reason: "not_empty" };
 export async function applyTemplate(ctx: Ctx, vertical: Vertical): Promise<ApplyResult> {
   const template = TEMPLATES[vertical];
   const result = await withTenant(ctx.tenantId, async (tx): Promise<ApplyResult> => {
+    // Serializa aplicações concorrentes na mesma loja: a checagem de vazio abaixo fica segura.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('catalog.template'), hashtext(current_tenant()::text))`);
     const existing = await tx.execute(sql`select 1 from catalog_categories limit 1`);
     if (existing.length > 0) return { ok: false, reason: "not_empty" };
 

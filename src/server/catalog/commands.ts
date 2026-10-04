@@ -1,4 +1,5 @@
 import { and, asc, eq } from "drizzle-orm";
+import { z } from "zod";
 import { writeAudit } from "@/server/audit";
 import type { Tx } from "@/server/db/client";
 import {
@@ -19,6 +20,10 @@ export type Result = { ok: true; id: string } | { ok: false; reason: "not_found"
 
 export const NOT_FOUND: Result = { ok: false, reason: "not_found" };
 export const INVALID: Result = { ok: false, reason: "invalid" };
+
+const uuidSchema = z.string().uuid();
+/** Id que não é UUID nunca existe; evita o erro 22P02 do Postgres e vira `not_found`. */
+const isUuid = (id: string): boolean => uuidSchema.safeParse(id).success;
 
 /** Roda o comando e, se deu certo, grava a auditoria. */
 export async function run(ctx: Ctx, action: string, fn: (tx: Tx) => Promise<Result>): Promise<Result> {
@@ -44,6 +49,7 @@ export async function createCategory(ctx: Ctx, raw: unknown): Promise<Result> {
 }
 
 export async function updateCategory(ctx: Ctx, id: string, raw: unknown): Promise<Result> {
+  if (!isUuid(id)) return NOT_FOUND;
   const parsed = categoryInputSchema.safeParse(raw);
   if (!parsed.success) return INVALID;
   return run(ctx, "catalog.category.update", async (tx) => {
@@ -61,6 +67,7 @@ export async function updateCategory(ctx: Ctx, id: string, raw: unknown): Promis
 }
 
 export async function setCategoryActive(ctx: Ctx, id: string, active: boolean): Promise<Result> {
+  if (!isUuid(id)) return NOT_FOUND;
   return run(ctx, active ? "catalog.category.restore" : "catalog.category.archive", async (tx) => {
     const rows = await tx.update(catalogCategories).set({ active }).where(eq(catalogCategories.id, id)).returning({ id: catalogCategories.id });
     return rows.length === 1 ? { ok: true, id } : NOT_FOUND;
@@ -80,6 +87,7 @@ export async function createProduct(ctx: Ctx, raw: unknown): Promise<Result> {
 }
 
 export async function updateProduct(ctx: Ctx, id: string, raw: unknown): Promise<Result> {
+  if (!isUuid(id)) return NOT_FOUND;
   const parsed = productInputSchema.safeParse(raw);
   if (!parsed.success) return INVALID;
   const input = parsed.data;
@@ -102,6 +110,7 @@ export async function updateProduct(ctx: Ctx, id: string, raw: unknown): Promise
 }
 
 export async function setProductActive(ctx: Ctx, id: string, active: boolean): Promise<Result> {
+  if (!isUuid(id)) return NOT_FOUND;
   return run(ctx, active ? "catalog.product.restore" : "catalog.product.archive", async (tx) => {
     const rows = await tx.update(catalogProducts).set({ active }).where(eq(catalogProducts.id, id)).returning({ id: catalogProducts.id });
     return rows.length === 1 ? { ok: true, id } : NOT_FOUND;
@@ -109,6 +118,7 @@ export async function setProductActive(ctx: Ctx, id: string, active: boolean): P
 }
 
 export async function pauseProduct(ctx: Ctx, id: string, until: Date | null): Promise<Result> {
+  if (!isUuid(id)) return NOT_FOUND;
   return run(ctx, until ? "catalog.product.pause" : "catalog.product.resume", async (tx) => {
     const rows = await tx.update(catalogProducts).set({ pausedUntil: until }).where(eq(catalogProducts.id, id)).returning({ id: catalogProducts.id });
     return rows.length === 1 ? { ok: true, id } : NOT_FOUND;
@@ -131,7 +141,9 @@ export async function reorderCategories(ctx: Ctx, ids: string[]): Promise<Result
 }
 
 export async function reorderProducts(ctx: Ctx, categoryId: string, ids: string[]): Promise<Result> {
+  if (!isUuid(categoryId)) return NOT_FOUND;
   return run(ctx, "catalog.product.reorder", async (tx) => {
+    if ((await countExisting(tx, "catalog_categories", [categoryId])) !== 1) return NOT_FOUND;
     const current = (await tx.select({ id: catalogProducts.id }).from(catalogProducts).where(eq(catalogProducts.categoryId, categoryId))).map((r) => r.id);
     if (current.length === 0 || !sameSet(current, ids)) return INVALID;
     await applyOrder(tx, catalogProducts, ids);
@@ -150,6 +162,7 @@ export async function createOptionGroup(ctx: Ctx, raw: unknown): Promise<Result>
 }
 
 export async function updateOptionGroup(ctx: Ctx, id: string, raw: unknown): Promise<Result> {
+  if (!isUuid(id)) return NOT_FOUND;
   const parsed = optionGroupInputSchema.safeParse(raw);
   if (!parsed.success) return INVALID;
   return run(ctx, "catalog.group.update", async (tx) => {
@@ -170,6 +183,7 @@ export async function createSchedule(ctx: Ctx, raw: unknown): Promise<Result> {
 }
 
 export async function updateSchedule(ctx: Ctx, id: string, raw: unknown): Promise<Result> {
+  if (!isUuid(id)) return NOT_FOUND;
   const parsed = scheduleInputSchema.safeParse(raw);
   if (!parsed.success) return INVALID;
   return run(ctx, "catalog.schedule.update", async (tx) => {
@@ -184,6 +198,7 @@ export async function updateSchedule(ctx: Ctx, id: string, raw: unknown): Promis
 }
 
 export async function duplicateProduct(ctx: Ctx, id: string): Promise<Result> {
+  if (!isUuid(id)) return NOT_FOUND;
   return run(ctx, "catalog.product.duplicate", async (tx) => {
     const [src] = await tx.select({ name: catalogProducts.name, categoryId: catalogProducts.categoryId })
       .from(catalogProducts).where(eq(catalogProducts.id, id));
@@ -194,6 +209,7 @@ export async function duplicateProduct(ctx: Ctx, id: string): Promise<Result> {
 }
 
 export async function duplicateCategory(ctx: Ctx, id: string): Promise<Result> {
+  if (!isUuid(id)) return NOT_FOUND;
   return run(ctx, "catalog.category.duplicate", async (tx) => {
     const [src] = await tx.select().from(catalogCategories).where(eq(catalogCategories.id, id));
     if (!src) return NOT_FOUND;

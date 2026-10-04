@@ -41,6 +41,36 @@ describe("productInputSchema", () => {
   });
 });
 
+describe("imageUrl espelha o CHECK do banco (^https://, <= 500)", () => {
+  const parse = (imageUrl: string) => productInputSchema.safeParse(product({ imageUrl }));
+  it.each([
+    [" https://x.com/a.png", "https://x.com/a.png"],
+    ["\thttps://x.com/a.png", "https://x.com/a.png"],
+    ["HTTPS://x.com/a.png", "https://x.com/a.png"],
+  ])("normaliza %j", (input, esperado) => {
+    const r = parse(input);
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.imageUrl).toBe(esperado);
+  });
+  it.each([
+    ["https:x.com/a.png"],
+    ["https://"],
+    ["http://x.com/a.png"],
+    [`https://x.com/${"a".repeat(500)}`],
+  ])("recusa %j", (input) => {
+    expect(parse(input).success).toBe(false);
+  });
+  it("todo valor aceito satisfaz ^https:// e <= 500", () => {
+    for (const v of [" https://x.com/a b.png ", "HTTPS://X.com/Ü", "https://x.com:443/a"]) {
+      const r = parse(v);
+      if (r.success) {
+        expect(r.data.imageUrl).toMatch(/^https:\/\//);
+        expect(r.data.imageUrl?.length).toBeLessThanOrEqual(500);
+      }
+    }
+  });
+});
+
 describe("optionGroupInputSchema", () => {
   const group = (over: Record<string, unknown> = {}) => ({
     name: "Adicionais",
